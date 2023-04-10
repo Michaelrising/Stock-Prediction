@@ -82,13 +82,13 @@ class PearsonCorrelation(tf.keras.metrics.Metric):
 
         # Compute the correlation using tfp.stats.correlation
         correlation = tfp.stats.correlation(y_true_weighted, y_pred_weighted, sample_axis=axis, event_axis=None)
-        self.correlation.assign(tf.reduce_mean(correlation))
+        self.correlation.assign_add(tf.reduce_mean(correlation))
         self.running_times.assign_add(1)
 
     def result(self):
         return self.correlation/self.running_times
 
-    def reset_states(self):
+    def reset_state(self):
         self.correlation.assign(0.)
         self.running_times.assign(0.)
 
