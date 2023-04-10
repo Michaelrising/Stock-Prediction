@@ -4,4 +4,5 @@
 
 ### MLP-autoencoder decoder
 
-![plot](./pics/mlp_autoencode_decoder.jpeg)
+[mlp_autoencoder_decoder](https://user-images.githubusercontent.com/53537769/230900736-2d978fd5-1c5f-45ea-bb99-8e434c1591b5.jpeg)
+
