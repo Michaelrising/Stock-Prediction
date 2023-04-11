@@ -67,7 +67,7 @@ params = {'in_dim': X.shape[1],
           'out_dim': 1, 
           'hidden_units': [128, 256, 896, 448, 448, 256],
           'dropout_rates': [0.03527936123679956, 0.038424974585075086, 0.42409238408801436, 0.10431484318345882, 0.49230389137187497, 0.32024444956111164, 0.2716856145683449, 0.4379233941604448], 
-          'lr':1e-4,
+          'lr':1e-3,
          }
 
 
@@ -79,7 +79,7 @@ if not os.path.exists(log_fold):
     os.makedirs(log_fold)
     
 batch_size = 4096
-prediction_length = 10
+prediction_length = 5
 pred_results = pd.DataFrame(columns=['date', 'symbol', 'y', 'pred_y'])
 train_X = train_data.drop(['y', 'symbol'], axis=1)
 train_Y = train_data[['date', 'y']]
@@ -131,13 +131,19 @@ for k in range(len(eval_dates)//prediction_length):
     hist = pd.DataFrame(history.history)
     score = hist['val_pred_IC'].max()
     print(f'val_correlation:\t', score)
-    print(f'====== Prediction {k} =======')
+    print(f'====== Prediction {k} with the optimal model saved =======')
+
+    model.load_weights(ckp_path)
 
     _, pred_y = model.predict(pred_x, batch_size)
     prediction = pd.concat((pred_data[['date', 'symbol', 'y']].reset_index(), pd.DataFrame(pred_y, columns=['pred_y'])), axis=1)
     pred_results = pd.concat((pred_results, prediction), axis=0).reset_index(drop=True)
     print(f"Correlation {IC(tf.convert_to_tensor(true_y, tf.float32), pred_y).numpy()}")
+    K.clear_session()
+    del model
+    rubbish = gc.collect()
 
-# save the prediction results
-pred_results.to_csv(res_fold + '/mlp_pred_results.csv')
+    # save the prediction results
+    print(f'======= Save current results until {k} =======')
+    pred_results.to_csv(res_fold + '/mlp_pred_results.csv')
 
