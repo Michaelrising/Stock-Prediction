@@ -13,6 +13,9 @@ import tensorflow_probability as tfp
 import os, gc
 import keras.backend as K
 
+# tf.config.run_functions_eagerly(True)
+# tf.data.experimental.enable_debug_mode()
+
 path='../data/'#please change to your directory
 
 data=pd.read_csv(path+"panel_zscore.csv")
@@ -24,23 +27,20 @@ data.describe()
 
 data = data.drop('x_90', axis=1)
 
-train_data = data[(data['date'] >= '2018-04-01') & (data['date'] <= '2021-01-01')]
-eval_data = data[data['date'] >= '2021-01-01']
-print(train_data.isnull().sum())
 def fillna_group(group):
     return group.fillna(method='ffill', axis=0).fillna(method='bfill', axis=0)
 
-train_data = train_data.groupby('symbol').apply(fillna_group)
-train_data = train_data.dropna()
+data = data.groupby('symbol').apply(fillna_group).reset_index(drop=True)
+data = data.dropna()
+
+train_data = data[(data['date'] >= '2018-04-01') & (data['date'] <= '2021-01-01')]
+eval_data = data[data['date'] >= '2021-01-01']
+print(train_data.isnull().sum())
 
 X = train_data.drop(['y', 'date', 'symbol'], axis=1).values
 y = train_data['y'].values
 
-eval_data = data[data['date'] >= '2021-01-01']
 print(eval_data.isnull().sum())
-
-eval_data = eval_data.groupby('symbol').apply(fillna_group)
-eval_data = eval_data.dropna()
 
 eval_dates = eval_data.date
 eval_X = eval_data.drop(['y', 'date', 'symbol'], axis=1).values
@@ -65,9 +65,9 @@ if gpus:
 
 params = {'in_dim': X.shape[1], 
           'out_dim': 1, 
-          'hidden_units': [96, 96, 896, 448, 448, 256], 
+          'hidden_units': [128, 256, 896, 448, 448, 256],
           'dropout_rates': [0.03527936123679956, 0.038424974585075086, 0.42409238408801436, 0.10431484318345882, 0.49230389137187497, 0.32024444956111164, 0.2716856145683449, 0.4379233941604448], 
-          'lr':1e-3, 
+          'lr':1e-4,
          }
 
 
@@ -120,13 +120,14 @@ for k in range(len(eval_dates)//prediction_length):
     model = create_ae_mlp(**params)
     ckp = keras.callbacks.ModelCheckpoint(ckp_path, monitor = 'val_pred_loss', verbose = 0, 
                           save_best_only = True, save_weights_only = True, mode = 'min')
-    es = keras.callbacks.EarlyStopping(monitor = 'val_pred_loss', min_delta = 1e-4, patience = 10, mode = 'min', 
+    es = keras.callbacks.EarlyStopping(monitor = 'val_pred_loss', min_delta = 1e-6, patience = 10, mode = 'min',
                        baseline = None, restore_best_weights = True, verbose = 0)
     tb = keras.callbacks.TensorBoard(log_dir=log_fold+f'/Model_{k}',
                              histogram_freq=1, write_graph=True, write_images=True, update_freq='epoch',
-                             embeddings_freq=0, embeddings_metadata=None) 
+                             embeddings_freq=0, embeddings_metadata=None)
+    # model.call(train_x[:batch_size])
     history = model.fit(train_x, [train_x,train_y], validation_data = (pred_x, [pred_x, true_y]),
-                        epochs = 100, batch_size = batch_size, callbacks = [ckp, es, tb], verbose = 0)
+                        epochs = 100, batch_size = batch_size, callbacks = [ckp, es, tb], verbose = 1)
     hist = pd.DataFrame(history.history)
     score = hist['val_pred_IC'].max()
     print(f'val_correlation:\t', score)

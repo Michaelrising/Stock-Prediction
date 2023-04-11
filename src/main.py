@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 #
 # tf.config.run_functions_eagerly(True)
 # tf.data.experimental.enable_debug_mode()
-os.environ["CUDA_VISIBLE_DEVICES"] = '0'
+os.environ["CUDA_VISIBLE_DEVICES"] = '1'
 os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
@@ -168,7 +168,7 @@ if TRAIN:
 
         history = model.fit(train_x, (train_y, t_mask), validation_data=(val_x, (val_y, val_mask)), epochs=50, batch_size=batch_size, callbacks=[ckp, es, tb], verbose=1)
         hist = pd.DataFrame(history.history)
-        score = hist['val_pearson_correlation'].max()
+        score = hist['val_pred_IC'].max()
         print(f'The {k}-th Prediction has IC:\t', score)
         scores.append(score)
         pred_y = model.predict(val_x, batch_size)

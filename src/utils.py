@@ -46,21 +46,25 @@ def plot_cv_indices(cv, X, y, group, ax, n_splits, lw=10):
 
 
 def IC(y_true, y_pred, sample_weights=None):
+    rank = y_true.shape[1]
+    axis = 0 if rank == 1 else 1
     if sample_weights is not None:
-        y_true = tf.boolean_mask(y_true, sample_weights)
-        y_pred = tf.boolean_mask(y_pred, sample_weights)
-    correlation = tfp.stats.correlation(y_true, y_pred, sample_axis=1, event_axis=None)
+        y_true = y_true * sample_weights
+        y_pred = y_pred * sample_weights
+    correlation = tfp.stats.correlation(y_true, y_pred, sample_axis=axis, event_axis=None)
     return tf.reduce_mean(correlation)
 
+def IC_mlp(y_true, y_pred):
+    return tfp.stats.correlation(y_true, y_pred, sample_axis=0, event_axis=None)
+
 # Custom loss function for MSE + Correlation
-@tf.function
 def mse_corr_loss(y_true, y_pred, sample_weights=None):
-    # if sample_weights is not None:
-    #     y_true = tf.boolean_mask(y_true, sample_weights)
-    #     y_pred = tf.boolean_mask(y_pred, sample_weights)
-    eta = IC(y_true, y_pred, sample_weights)
+    if sample_weights is not None:
+        y_true = y_true * sample_weights
+        y_pred = y_pred * sample_weights
+    eta = IC(y_true, y_pred)
     mse = tf.keras.losses.MeanSquaredError()
-    return mse(y_true, y_pred, sample_weights) + tf.constant(0.05)/tf.math.maximum(eta, 0.0001)
+    return mse(y_true, y_pred) - 0.1*eta #tf.math.maximum(eta, 0.0001) # tf.constant(0.01)/
 
 
 class PearsonCorrelation(tf.keras.metrics.Metric):
@@ -70,7 +74,7 @@ class PearsonCorrelation(tf.keras.metrics.Metric):
         self.running_times = self.add_weight(name='running_times', initializer='zeros')
 
     def update_state(self, y_true, y_pred, sample_weight=None):
-        rank = len(y_true.shape)
+        rank = y_true.shape[1]
         axis = 0 if rank == 1 else 1
 
         if sample_weight is None:

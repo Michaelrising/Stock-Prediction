@@ -1,5 +1,5 @@
 from tensorflow import keras
-from utils import plot_cv_indices, IC, mse_corr_loss
+from utils import plot_cv_indices, IC, mse_corr_loss, PearsonCorrelation
 
 def create_ae_mlp(in_dim, out_dim, hidden_units, dropout_rates, lr=1e-4):
     inp = keras.layers.Input(shape=(in_dim,))
@@ -12,6 +12,7 @@ def create_ae_mlp(in_dim, out_dim, hidden_units, dropout_rates, lr=1e-4):
 
     decoder = keras.layers.Dropout(dropout_rates[1])(encoder)
     decoder = keras.layers.Dense(in_dim * 2, activation='swish')(decoder)
+    decoder = keras.layers.BatchNormalization()(decoder)
     decoder = keras.layers.Dense(in_dim, name='decoder')(decoder)
 
     x = keras.layers.Concatenate()([x0, encoder])
@@ -32,7 +33,7 @@ def create_ae_mlp(in_dim, out_dim, hidden_units, dropout_rates, lr=1e-4):
                         'pred': mse_corr_loss,
                         },
                   metrics={'decoder': keras.metrics.MeanAbsoluteError(name='MAE'),
-                           'pred': IC,
+                           'pred': PearsonCorrelation(name='IC')
                            },
                   )
 
