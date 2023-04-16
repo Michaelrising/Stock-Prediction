@@ -8,10 +8,10 @@ def create_ae_mlp(in_dim, out_dim, hidden_units, dropout_rates, lr=1e-4):
     encoder = keras.layers.GaussianNoise(dropout_rates[0])(x0)
     encoder = keras.layers.Dense(hidden_units[0], kernel_initializer='he_normal')(encoder)
     encoder = keras.layers.BatchNormalization()(encoder)
-    encoder = keras.layers.Activation('swish')(encoder) # elu
+    encoder = keras.layers.Activation('gelu')(encoder) # elu
 
     decoder = keras.layers.Dropout(dropout_rates[1])(encoder)
-    decoder = keras.layers.Dense(in_dim * 2, activation='swish', kernel_initializer='he_normal')(decoder)
+    decoder = keras.layers.Dense(in_dim * 2, activation='gelu', kernel_initializer='he_normal')(decoder)
     decoder = keras.layers.BatchNormalization()(decoder)
     decoder = keras.layers.Dense(in_dim, name='decoder', kernel_initializer='he_normal')(decoder)
 
@@ -22,10 +22,10 @@ def create_ae_mlp(in_dim, out_dim, hidden_units, dropout_rates, lr=1e-4):
     for i in range(2, len(hidden_units)):
         x = keras.layers.Dense(hidden_units[i], kernel_initializer='he_normal')(x)
         x = keras.layers.BatchNormalization()(x)
-        x = keras.layers.Activation('swish')(x)
+        x = keras.layers.Activation('gelu')(x)
         x = keras.layers.Dropout(dropout_rates[i + 2])(x)
 
-    pred = keras.layers.Dense(out_dim, activation='swish', name='pred', kernel_initializer='he_normal')(x)
+    pred = keras.layers.Dense(out_dim, name='pred', kernel_initializer='he_normal')(x) # activation='gelu'
 
     model = keras.models.Model(inputs=inp, outputs=[decoder, pred])
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=lr, amsgrad=True, epsilon=1e-8, clipnorm=0.1),

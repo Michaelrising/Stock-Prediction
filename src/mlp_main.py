@@ -65,9 +65,9 @@ if gpus:
 
 params = {'in_dim': X.shape[1], 
           'out_dim': 1, 
-          'hidden_units': [128, 256, 896, 448, 448, 256],
+          'hidden_units': [128, 256, 896, 448, 448, 64],
           'dropout_rates': [0.03527936123679956, 0.038424974585075086, 0.42409238408801436, 0.10431484318345882, 0.49230389137187497, 0.32024444956111164, 0.2716856145683449, 0.4379233941604448], 
-          'lr':1e-3,
+          'lr':2e-4,
          }
 
 
@@ -79,7 +79,7 @@ if not os.path.exists(log_fold):
     os.makedirs(log_fold)
     
 batch_size = 4096
-prediction_length = 5
+prediction_length = 10
 pred_results = pd.DataFrame(columns=['date', 'symbol', 'y', 'pred_y'])
 train_X = train_data.drop(['y', 'symbol'], axis=1)
 train_Y = train_data[['date', 'y']]
@@ -95,7 +95,7 @@ pred_data = eval_data[eval_data['date'].isin(pred_dates)]
 pred_X = pred_data.drop(['y', 'symbol'], axis=1)
 pred_Y = pred_data[['date','y']]
 
-for k in range(len(eval_dates)//prediction_length):
+for k in range(10): # len(eval_dates)//prediction_length
     # add the next predicted time interval data into and delete the oldest data 
     # use the pre_data as validation for avoiding overfitting
     if k > 0:

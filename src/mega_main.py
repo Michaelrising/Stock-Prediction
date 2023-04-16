@@ -1,6 +1,3 @@
-import keras.losses
-import numpy as np
-
 from mega_model import *
 from utils import *
 import pandas as pd
@@ -8,16 +5,13 @@ from cv import PurgedGroupTimeSeriesSplit
 import keras.backend as K
 import os, gc
 import datetime
-from sklearn.impute import KNNImputer
-# from sklearn.experimental import enable_iterative_imputer
-import tensorflow_probability as tfp
-import matplotlib.pyplot as plt
+
 
 
 #
 # tf.config.run_functions_eagerly(True)
 # tf.data.experimental.enable_debug_mode()
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 os.environ['TF_GPU_ALLOCATOR'] = 'cuda_malloc_async'
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
@@ -98,6 +92,7 @@ group_gap = 10
 TRAIN = True
 
 params = {
+        'chunk_size': 5,
         "features": 89,
         "mid_feature": 512, # 64
         "hidden_dim": 64,
@@ -106,6 +101,7 @@ params = {
 #
 
 res_fold = '../results/mega/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+res_fold = '../results/mega/20230410-200713'
 if not os.path.exists(res_fold):
     os.makedirs(res_fold)
 log_fold = '../logs/mega/' + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
@@ -113,10 +109,11 @@ if not os.path.exists(log_fold):
     os.makedirs(log_fold)
 
 
-batch_size = 64
+batch_size = 32
 prediction_length = 10
 results = pd.DataFrame(columns=['symbol', 'date', 'pred_y', 'y'])
 
+predict_return = pd.DataFrame()
 
 if TRAIN:
     scores = []
@@ -132,8 +129,9 @@ if TRAIN:
                                          histogram_freq=1, write_graph=True, write_images=True, update_freq='epoch',
                                          embeddings_freq=0, embeddings_metadata=None) #profile_batch=2,
 
-        model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0005, amsgrad=True), loss=mse_corr_loss, metrics=[keras.metrics.MeanAbsoluteError(), PearsonCorrelation()])
+        model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0005, amsgrad=True), loss=keras.losses.MeanSquaredError(), metrics=[keras.metrics.MeanAbsoluteError(), PearsonCorrelation()])
 
+        # find the next prediction_length dates
         pred_dates = eval_dates[k * prediction_length: (k + 1) * prediction_length]
         pred_data = eval_data[eval_data['date'].isin(pred_dates)]
         train_data = []
@@ -163,32 +161,58 @@ if TRAIN:
         train_y = train_data[:, :, 0]
         val_x = val_data[:, :, 1:]
         val_y = val_data[:, :, 0]
-        t_mask = np.array(train_mask)[:, :, 0]
-        val_mask = np.array(val_mask)[:, :, 0]
+        t_mask = np.array(train_mask)[:, :, 0].reshape(-1, seq_len, 1)
+        val_mask = np.array(val_mask)[:, :, 0].reshape(-1, prediction_length, 1)
 
-        history = model.fit(train_x, (train_y, t_mask), validation_data=(val_x, (val_y, val_mask)), epochs=50, batch_size=batch_size, callbacks=[ckp, es, tb], verbose=1)
-        hist = pd.DataFrame(history.history)
-        score = hist['val_pred_IC'].max()
-        print(f'The {k}-th Prediction has IC:\t', score)
-        scores.append(score)
-        pred_y = model.predict(val_x, batch_size)
-        prediction = pred_data.drop(['x_'+str(i) for i in range(1, 90)], axis=1)
+        # model.call(train_x[:batch_size])
+        # hist = pd.DataFrame(history.history)
+        # score = hist['val_pred_IC'].max()
+        # print(f'The {k}-th Prediction has IC:\t', score)
+        # scores.append(score)
+        history = model.fit(train_x[:batch_size], (train_y[:batch_size], t_mask[:batch_size]), epochs=1, batch_size=batch_size, verbose=0)
 
-        for i, symbol in enumerate(train_data_dict.keys()):
-            symbol_data = prediction[prediction['symbol'] == symbol]
-            # the prediction data has length 10 but the true may not have length 10
-            symbol_pred_data = pred_y[i][-symbol_data.shape[0]:]
-            # map the prediction data to the prediction dataframe
-            symbol_data['pred_y'] = symbol_pred_data
-            results = pd.concat((results, symbol_data), axis=0)
+        model.load_weights(ckp_path)
+        prediction = []
+        pred_x = train_x
+        for i in range(prediction_length):
+            pred_x = np.append(pred_x, val_x[:, i, :].reshape(-1, 1, 89), axis=1)[:, -seq_len:, :]
+            pred_y1 = model.predict(pred_x[:112*batch_size], batch_size)
+            pred_y2 = model.call(pred_x[112*batch_size:])
+            pred_y = np.concatenate((pred_y1, pred_y2), axis=0)
+            prediction.append(pred_y[:, -1])
+        prediction_y = np.array(prediction)
+        # map the prediction data to the prediction dataframe
+        predict_return = pd.concat((predict_return, pd.DataFrame(prediction_y, columns=train_data_dict.keys(), index=pred_dates)), axis=0)
+        # symbol_date_info = pred_data.drop(['x_' + str(i) for i in range(1, 90)], axis=1)
+        # for i, symbol in enumerate(train_data_dict.keys()):
+        #     symbol_data = symbol_date_info[symbol_date_info['symbol'] == symbol]
+        #     symbol_pred_data = prediction_y[:, i][-(symbol_data.shape[0]):]
+        #     symbol_data['pred_y'] = symbol_pred_data
+        #     results = pd.concat((results, symbol_data), axis=0)
+        #
 
-        print(f"Correlation {IC(tf.convert_to_tensor(val_y, tf.float32), pred_y)}")
+
+
+
+        # pred_y = model.predict(val_x, batch_size)
+        # prediction = pred_data.drop(['x_'+str(i) for i in range(1, 90)], axis=1)
+        #
+        # for i, symbol in enumerate(train_data_dict.keys()):
+        #     symbol_data = prediction[prediction['symbol'] == symbol]
+        #     # the prediction data has length 10 but the true may not have length 10
+        #     symbol_pred_data = pred_y[i][-symbol_data.shape[0]:]
+        #     # map the prediction data to the prediction dataframe
+        #     symbol_data['pred_y'] = symbol_pred_data
+        #     results = pd.concat((results, symbol_data), axis=0)
+
+        print(f"Correlation {IC(tf.convert_to_tensor(val_y.T, tf.float32), prediction_y)}")
         K.clear_session()
         del model
         rubbish = gc.collect()
 
-    # save the prediction results
-    results.to_csv(res_fold + '/mega_pred_results.csv')
+        # save the prediction results
+        print(f'======= Save model until now {k} =======')
+        predict_return.to_csv(res_fold + '/mega_pred_results_one_day_ahead.csv')
 
 print('Weighted Average CV Score:', np.mean(scores))
 

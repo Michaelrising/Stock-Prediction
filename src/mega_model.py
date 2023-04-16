@@ -20,7 +20,7 @@ class MegaPredictor(keras.Model):
         # self.encoder.add(keras.layers.Input(shape=(features, )))
         self.encoder.add(keras.layers.GaussianNoise(0.01))
         self.encoder.add(keras.layers.Dense(mid_feature, activation='swish'))
-        self.encoder.add(MegaEncoderLayer(features=mid_feature, chunk_size=chunk_size, ff_mult=ff_mult))
+        self.encoder.add(MegaEncoderLayer(features=mid_feature, chunk_size=chunk_size, ff_mult=ff_mult, causal=True))
 
         # self.decoder = keras.Sequential()
         # self.decoder.add(keras.layers.Dense(mid_feature, activation='swish'))

@@ -64,7 +64,7 @@ def mse_corr_loss(y_true, y_pred, sample_weights=None):
         y_pred = y_pred * sample_weights
     eta = IC(y_true, y_pred)
     mse = tf.keras.losses.MeanSquaredError()
-    return mse(y_true, y_pred) - 0.1*eta #tf.math.maximum(eta, 0.0001) # tf.constant(0.01)/
+    return mse(y_true, y_pred) - 0.01 * eta #tf.math.maximum(eta, 0.0001) # tf.constant(0.01)/
 
 
 class PearsonCorrelation(tf.keras.metrics.Metric):
